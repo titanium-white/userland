@@ -2176,6 +2176,8 @@ int main(int argc, const char **argv)
                   clock_gettime(CLOCK_MONOTONIC, &spec);
                   int ms = round(spec.tv_nsec / 1.0e6);
                   fprintf(stderr, "%li:%i FRAME CAPTURE start\n", spec.tv_sec, ms);
+                  if(state.useLEDpin)
+                     digitalWrite(state.useLEDpin, LOW);
 
                   if (mmal_port_parameter_set_boolean(camera_still_port, MMAL_PARAMETER_CAPTURE, 1) != MMAL_SUCCESS)
                   {
@@ -2194,6 +2196,8 @@ int main(int argc, const char **argv)
                      clock_gettime(CLOCK_MONOTONIC, &spec);
                      int ms = round(spec.tv_nsec / 1.0e6);
                      fprintf(stderr, "%li:%i FRAME CAPTURE complete\n", spec.tv_sec, ms);
+                     if(state.useLEDpin)
+                        digitalWrite(state.useLEDpin, HIGH);
                   }
 
                   // Ensure we don't die if get callback with no open file
@@ -2295,8 +2299,11 @@ gps_error:
       raspicamcontrol_check_configuration(128);
 
    // if using LED, turn off LED
-   if(state.useLEDpin)
+   if(state.useLEDpin) {
+      //wait 100ms so it's not just a short flicker
+      vcos_sleep(100);
       digitalWrite(state.useLEDpin, LOW);
+   }
    return exit_code;
 }
 
