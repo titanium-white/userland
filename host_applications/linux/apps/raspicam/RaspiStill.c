@@ -149,6 +149,7 @@ typedef struct
    int gpsdExif;                       /// Add real-time gpsd output as EXIF tags
 
    int useGPIOpin;                     /// if set (!=0), listen to this GPIO pin to trigger
+   int useLEDpin;                      /// if set (!=0), turn on LED at this pin
 
    RASPIPREVIEW_PARAMETERS preview_parameters;    /// Preview setup parameters
    RASPICAM_CAMERA_PARAMETERS camera_parameters; /// Camera setup parameters
@@ -219,7 +220,8 @@ enum
    CommandFrameStart,
    CommandRestartInterval,
    CommandGpsdExif,
-   CommandGPIO
+   CommandGPIO,
+   CommandLED
 };
 
 static COMMAND_LIST cmdline_commands[] =
@@ -245,6 +247,7 @@ static COMMAND_LIST cmdline_commands[] =
    { CommandRestartInterval, "-restart","rs","JPEG Restart interval (default of 0 for none)", 1},
    { CommandGpsdExif,  "-gpsdexif", "gps", "Apply real-time GPS information from gpsd as EXIF tags (requires "LIBGPS_SO_VERSION")", 0},
    { CommandGPIO,  "-gpio", "gpi", "if set to != 0, will trigger if this pin is on", 0},
+   { CommandLED,  "-led", "le", "if set to != 0, will turn on LED on this pin while running", 0},
 };
 
 static int cmdline_commands_size = sizeof(cmdline_commands) / sizeof(cmdline_commands[0]);
@@ -331,6 +334,7 @@ static void default_status(RASPISTILL_STATE *state)
    state->gpsdExif = 0;
 
    state->useGPIOpin = 0;
+   state->useLEDpin = 0;
    
 
    // Setup preview window defaults
@@ -404,6 +408,7 @@ static void dump_status(RASPISTILL_STATE *state)
       fprintf(stderr, "EXIF tags disabled\n");
 
    fprintf(stderr, "GPIO pin %i\n", state->useGPIOpin);
+   fprintf(stderr, "LED pin %i\n", state->useLEDpin);
 
    raspipreview_dump_parameters(&state->preview_parameters);
    raspicamcontrol_dump_parameters(&state->camera_parameters);
@@ -542,6 +547,19 @@ static int parse_cmdline(int argc, const char **argv, RASPISTILL_STATE *state)
             fprintf(stderr, "starting listener thread\n");
             state->gpio_t_val = -1;
             pthread_create(&(state->gpio_t_id), NULL, gpio_thread, (void*)state);
+         }
+         else
+            valid = 0;
+         break;
+         
+      case CommandLED: // GPIO pin
+         if (sscanf(argv[i + 1], "%u", &state->useLEDpin) == 1)
+         {
+            wiringPiSetup();
+            pinMode(state->useLEDpin, OUTPUT);
+   	      fprintf(stderr, "LED pin %i\n", state->useLEDpin);
+            digitalWrite(state->useLEDpin, HIGH);
+            i++;
          }
          else
             valid = 0;
@@ -1536,7 +1554,7 @@ static int wait_for_next_frame(RASPISTILL_STATE *state, int *frame)
    // If timeout = 0 then always continue
    if (current_time >= complete_time && state->timeout != 0)
       keep_running = 0;
-
+      
    switch (state->frameNextMethod)
    {
    case FRAME_NEXT_SINGLE :
@@ -2276,6 +2294,9 @@ gps_error:
    if (status != MMAL_SUCCESS)
       raspicamcontrol_check_configuration(128);
 
+   // if using LED, turn off LED
+   if(state.useLEDpin)
+      digitalWrite(state.useLEDpin, LOW);
    return exit_code;
 }
 
